@@ -1,3 +1,13 @@
+// Computes the percentage of morpho rewards a user has a right to per adapter.
+//
+// A user has rights to morpho rewards if they hold YTs during an epoch.
+// We compute a score for each user with the following form:
+//
+// score = a_1 * t_1 + a_2 * t_2 + ... + a_n * t_n
+//
+// where t_i is the ith period of time the user held a_i YTs during the epoch.
+// A period of time is defined as the amount of blocks the user held the YTs.
+// If the user held the YTs for 100 blocks, then t_i = 100.
 import ethers from "ethers";
 import Decimal from "decimal.js";
 import * as dotenv from "dotenv";
@@ -60,11 +70,11 @@ async function main(adapterAddress, startBlock = 0, endBlock = Infinity) {
     scores[user].prevCheckpoint.block = endBlock;
   }
 
-  const toalScore = Object.values(scores).reduce((acc, { score }) => acc.plus(score), new Decimal(0));
+  const totalScore = Object.values(scores).reduce((acc, { score }) => acc.plus(score), new Decimal(0));
 
   const rights = {};
   for (const [user, { score }] of Object.entries(scores)) {
-    rights[user] = score.div(toalScore).toNumber();
+    rights[user] = score.div(totalScore).toNumber();
   }
 
   console.log(rights, "score");
