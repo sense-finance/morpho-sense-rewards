@@ -101,7 +101,7 @@ async function main(
 
   const rights = {};
   for (const [user, { score }] of Object.entries(scores)) {
-    const _score = score.div(toalScore);
+    const _score = score.div(totalScore);
     if (_score.toNumber() > 0.001)
       rights[user] = _score.times(totalAvailableMorpho).toDecimalPlaces(0).toString();
   }
@@ -109,10 +109,13 @@ async function main(
   const { root, proofs } = computeMerkleTree(
     Object.entries(rights).map(([address, accumulatedRewards]) => ({ address, accumulatedRewards }))
   );
+
   console.log("Computed root: ", root);
 
   // save the age proofs into a file
-  if (!dryRun) {
+  if (dryRun) {
+    console.log("Computed proof: ", proof);
+  } else {
     await fs.promises.writeFile(PROOFS_FILENAME, JSON.stringify({ root, proofs }, null, 2));
   }
 }
