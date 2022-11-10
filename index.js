@@ -11,6 +11,8 @@
 import ethers from "ethers";
 import Decimal from "decimal.js";
 import * as dotenv from "dotenv";
+import * as fs from "fs";
+import { computeMerkleTree } from "./merkleTree.js";
 
 import dividerAbi from "./abis/Divider.js";
 import tokenAbi from "./abis/Token.js";
@@ -18,13 +20,21 @@ import tokenAbi from "./abis/Token.js";
 dotenv.config();
 
 const DIVIDER_ADDRESS = "0x86bA3E96Be68563E41c2f5769F1AF9fAf758e6E0";
+const MORPHO_TOKEN = "0x9994E35Db50125E0DF82e4c2dde62496CE330999";
+const PROOFS_FILENAME = "./proof.json";
 
-async function main(adapterAddress, startBlock = 0, endBlock = Infinity) {
+async function main(
+  adapterAddress = "0x880E5caBB22D24F3E278C4C760e763f239AccA95", // WstETHAdapter
+  startBlock = 0,
+  endBlock = Infinity,
+  dryRun = true
+) {
   // Validate address
   adapterAddress = ethers.utils.getAddress(adapterAddress);
 
   const provider = new ethers.providers.AlchemyProvider("homestead", process.env.ALCHEMY_KEY);
   const divider = new ethers.Contract(DIVIDER_ADDRESS, dividerAbi, provider);
+  const morphoToken = new ethers.Contract(MORPHO_TOKEN, tokenAbi, provider);
 
   const logs = await divider
     .queryFilter(divider.filters.SeriesInitialized(null, null, null, null, null, null))
@@ -48,7 +58,14 @@ async function main(adapterAddress, startBlock = 0, endBlock = Infinity) {
     if (to !== ethers.constants.AddressZero) {
       if (scores[to]) {
         const { prevCheckpoint, score } = scores[to];
-        scores[to].score = score.plus(prevCheckpoint.amount.times(block - prevCheckpoint.block));
+        if (startBlock > prevCheckpoint.block) {
+          if (startBlock < block) {
+            scores[to].score = score.plus(prevCheckpoint.amount.times(block - startBlock));
+          }
+        } else {
+          scores[to].score = score.plus(prevCheckpoint.amount.times(block - prevCheckpoint.block));
+        }
+
         scores[to].prevCheckpoint = { amount: prevCheckpoint.amount.plus(amount), block };
       } else {
         scores[to] = { score: new Decimal(0), prevCheckpoint: { amount, block } };
@@ -57,7 +74,13 @@ async function main(adapterAddress, startBlock = 0, endBlock = Infinity) {
 
     if (scores[from] && from !== ethers.constants.AddressZero) {
       const { prevCheckpoint, score } = scores[from];
-      scores[from].score = score.plus(prevCheckpoint.amount.times(block - prevCheckpoint.block));
+      if (startBlock > prevCheckpoint.block) {
+        if (startBlock < block) {
+          scores[from].score = score.plus(prevCheckpoint.amount.times(block - startBlock));
+        }
+      } else {
+        scores[from].score = score.plus(prevCheckpoint.amount.times(block - prevCheckpoint.block));
+      }
       scores[from].prevCheckpoint = { amount: prevCheckpoint.amount.minus(amount), block };
     }
   }
@@ -72,14 +95,28 @@ async function main(adapterAddress, startBlock = 0, endBlock = Infinity) {
 
   const totalScore = Object.values(scores).reduce((acc, { score }) => acc.plus(score), new Decimal(0));
 
+  const totalAvailableMorpho = dryRun
+    ? new Decimal(1337).times("1e18")
+    : new Decimal(await morphoToken.balanceOf(adapterAddress).then((b) => b.toString()));
+
   const rights = {};
   for (const [user, { score }] of Object.entries(scores)) {
-    rights[user] = score.div(totalScore).toNumber();
+    const _score = score.div(toalScore);
+    if (_score.toNumber() > 0.001)
+      rights[user] = _score.times(totalAvailableMorpho).toDecimalPlaces(0).toString();
   }
 
-  console.log(rights, "score");
+  const { root, proofs } = computeMerkleTree(
+    Object.entries(rights).map(([address, accumulatedRewards]) => ({ address, accumulatedRewards }))
+  );
+  console.log("Computed root: ", root);
+
+  // save the age proofs into a file
+  if (!dryRun) {
+    await fs.promises.writeFile(PROOFS_FILENAME, JSON.stringify({ root, proofs }, null, 2));
+  }
 }
 
 const [adapterAddress, startBlock, endBlock] = process.argv.slice(2);
 
-main(adapterAddress, startBlock, endBlock);
+main(adapterAddress, startBlock, endBlock, true);
