@@ -2,9 +2,8 @@ import { ethers } from "ethers";
 import { MerkleTree } from "merkletreejs";
 
 export const computeMerkleTree = (distribution) => {
-  const leaves = distribution.map(
-    ({ address, accumulatedRewards }) =>
-      ethers.utils.solidityKeccak256(["address", "uint256"], [address, accumulatedRewards]) // 18 * 2 decimals
+  const leaves = distribution.map(({ address, accumulatedRewards }) =>
+    ethers.utils.solidityKeccak256(["address", "uint256"], [address, accumulatedRewards])
   );
   const merkleTree = new MerkleTree(leaves, ethers.utils.keccak256, {
     sortPairs: true,
