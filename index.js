@@ -57,7 +57,7 @@ async function main(
   // Calculate scores (representations of the balance of YTs held by a user * the amount of time they held them)
   // via checkpoints on each transfer. e.g.
   // * transfer 50 YTs to user for the first time on block 100 -> checkpoint 1 = 50 YTs, block 100; score = 0
-  // * transfer 50 YTs to user on block 200 -> checkpoint 2 = 100 YTs, block 200; socre = 50 * (200 - 100) = 5000
+  // * transfer 50 YTs to user on block 200 -> checkpoint 2 = 100 YTs, block 200; score = 50 * (200 - 100) = 5000
   const scores = {};
   for (const { from, to, amount, block } of aggregatedTransfers) {
     if (to !== ethers.constants.AddressZero) {
